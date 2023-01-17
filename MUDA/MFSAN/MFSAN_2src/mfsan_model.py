@@ -5,7 +5,7 @@ import mmd
 import torch.nn.functional as F
 from torch.autograd import Variable
 import torch
-
+from typing import Tuple, Optional, List, Dict
 
 __all__ = ['ResNet', 'resnet50']
 
@@ -47,11 +47,18 @@ class ADDneck(nn.Module):
 # 定制: backbone，num_classes，finetune,  损失函数，avgpool
 class MFSAN(nn.Module):
 
-    def __init__(self, backbone: nn.Module, num_classes: int, finetune:bool, **kwargs):
+    def __init__(self, backbone: nn.Module, num_classes: int, finetune:bool,bottleneck_dim: Optional[int] = 2048, **kwargs):
         super(MFSAN, self).__init__()
+
+        # self.bottleneck = nn.Sequential(
+        #     nn.Linear(backbone.out_features, bottleneck_dim),
+        #     nn.BatchNorm1d(bottleneck_dim),
+        #     nn.ReLU()
+        # )
+
         self.sharedNet = backbone
-        self.sonnet1 = ADDneck(2048, 256)
-        self.sonnet2 = ADDneck(2048, 256)
+        self.sonnet1 = ADDneck(backbone.out_features, 256)
+        self.sonnet2 = ADDneck(backbone.out_features, 256)
         self.cls_fc_son1 = nn.Linear(256, num_classes)
         self.cls_fc_son2 = nn.Linear(256, num_classes)
         self.avgpool = nn.AvgPool2d(7, stride=1)
@@ -143,16 +150,16 @@ class MFSAN(nn.Module):
             return pred1, pred2
     
     def get_parameters(self, base_lr=1.0) -> List[Dict]:
-    """A parameter list which decides optimization hyper-parameters,
-        such as the relative learning rate of each layer
-    """
-    params = [
-        {"params": self.sharedNet.parameters(), "lr": 0.1 * base_lr if self.finetune else 1.0 * base_lr},
-        {'params': model.cls_fc_son1.parameters(), 'lr': 1.0 * base_lr},
-        {'params': model.cls_fc_son2.parameters(), 'lr': 1.0 * base_lr},
-        {'params': model.sonnet1.parameters(), 'lr': 1.0 * base_lr},
-        {'params': model.sonnet2.parameters(), 'lr': 1.0 * base_lr},
-    ]
+    # """A parameter list which decides optimization hyper-parameters,
+    #     such as the relative learning rate of each layer
+    # """
+        params = [
+            {"params": self.sharedNet.parameters(), "lr": 0.1 * base_lr if self.finetune else 1.0 * base_lr},
+            {'params': self.cls_fc_son1.parameters(), 'lr': 1.0 * base_lr},
+            {'params': self.cls_fc_son2.parameters(), 'lr': 1.0 * base_lr},
+            {'params': self.sonnet1.parameters(), 'lr': 1.0 * base_lr},
+            {'params': self.sonnet2.parameters(), 'lr': 1.0 * base_lr},
+        ]
 
-    return params
+        return params
 

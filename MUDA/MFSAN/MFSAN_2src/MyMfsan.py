@@ -155,18 +155,18 @@ def train(model, source1_iter, source2_iter, target_iter, target_test_loader):
 
     optimizer = torch.optim.SGD(model.get_parameters(args.lr), 
         # 设置其他参数学习率、动量和L2权重衰减
-        lr=args.lr, momentum=momentum, weight_decay=l2_decay)
+        lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
     
     lr_scheduler = LambdaLR(optimizer, lambda x: args.lr * (1. + args.lr_gamma * float(x)) ** (-args.lr_decay))
 
     for i in range(1, iteration + 1):
         model.train()
 
-        # optimizer.param_groups[0]['lr'] = lr[0] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
-        # optimizer.param_groups[1]['lr'] = lr[1] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
-        # optimizer.param_groups[2]['lr'] = lr[1] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
-        # optimizer.param_groups[3]['lr'] = lr[1] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
-        # optimizer.param_groups[4]['lr'] = lr[1] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
+        optimizer.param_groups[0]['lr'] = lr[0] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
+        optimizer.param_groups[1]['lr'] = lr[1] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
+        optimizer.param_groups[2]['lr'] = lr[1] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
+        optimizer.param_groups[3]['lr'] = lr[1] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
+        optimizer.param_groups[4]['lr'] = lr[1] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
         
 
         source_data, source_label = next(source1_iter)[:2]
@@ -223,7 +223,7 @@ def train(model, source1_iter, source2_iter, target_iter, target_test_loader):
                 'Train source2 iter: {} [({:.0f}%)]\tLoss: {:.6f}\tsoft_Loss: {:.6f}\tmmd_Loss: {:.6f}\tl1_Loss: {:.6f}'.format(
                     i, 100. * i / iteration, loss.item(), cls_loss.item(), mmd_loss.item(), l1_loss.item()))
 
-        # if i % (log_interval * 20) == 0:
+        if i % (log_interval * 20) == 0:
             t_correct = test(model, target_test_loader)
             if t_correct > correct:
                 correct = t_correct
