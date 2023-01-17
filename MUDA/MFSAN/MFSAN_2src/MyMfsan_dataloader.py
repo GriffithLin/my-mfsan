@@ -1,5 +1,6 @@
 """
 @author: lin ming
+仅替换dataloader
 """
 from __future__ import print_function
 
@@ -40,7 +41,7 @@ from torch.autograd import Variable
 import os
 import math
 # import data_loader
-import mfsan_model as mfsan
+import resnet as models
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 # Training settings
@@ -133,18 +134,9 @@ def main(args: argparse.Namespace):
 
 
 
-    # model = models.MFSAN(num_classes=31)
-    # if cuda:
-    #     model.cuda()
-
-    # create model
-    print("=> using model '{}'".format(args.arch))
-    backbone = utils.get_model(args.arch, pretrain=not args.scratch)
-    # pool_layer = nn.Identity() if args.no_pool else None
-    model = mfsan.MFSAN(backbone, num_classes,finetune=not args.scratch).to(device)
+    model = models.MFSAN(num_classes=31)
     if cuda:
         model.cuda()
-
     train(model, train_source1_iter, train_source2_iter, train_target_iter, target_test_loader)
     
 
@@ -153,22 +145,35 @@ def train(model, source1_iter, source2_iter, target_iter, target_test_loader):
 
     correct = 0
 
-    optimizer = torch.optim.SGD(model.get_parameters(args.lr), 
-        # 设置其他参数学习率、动量和L2权重衰减
-        lr=args.lr, momentum=momentum, weight_decay=l2_decay)
-    
-    lr_scheduler = LambdaLR(optimizer, lambda x: args.lr * (1. + args.lr_gamma * float(x)) ** (-args.lr_decay))
+    optimizer = torch.optim.SGD([
+            {'params': model.sharedNet.parameters()},
+            {'params': model.cls_fc_son1.parameters(), 'lr': lr[1]},
+            {'params': model.cls_fc_son2.parameters(), 'lr': lr[1]},
+            {'params': model.sonnet1.parameters(), 'lr': lr[1]},
+            {'params': model.sonnet2.parameters(), 'lr': lr[1]},
+        ], lr=lr[0], momentum=momentum, weight_decay=l2_decay)
+
 
     for i in range(1, iteration + 1):
         model.train()
 
-        # optimizer.param_groups[0]['lr'] = lr[0] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
-        # optimizer.param_groups[1]['lr'] = lr[1] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
-        # optimizer.param_groups[2]['lr'] = lr[1] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
-        # optimizer.param_groups[3]['lr'] = lr[1] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
-        # optimizer.param_groups[4]['lr'] = lr[1] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
+        optimizer.param_groups[0]['lr'] = lr[0] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
+        optimizer.param_groups[1]['lr'] = lr[1] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
+        optimizer.param_groups[2]['lr'] = lr[1] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
+        optimizer.param_groups[3]['lr'] = lr[1] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
+        optimizer.param_groups[4]['lr'] = lr[1] / math.pow((1 + 10 * (i - 1) / (iteration)), 0.75)
         
-
+        # try:
+        #     source_data, source_label = next(source1_iter)
+        # except Exception as err:
+        #     source1_iter = iter(source1_loader)
+        #     source_data, source_label = next(source1_iter)
+        # try:
+        #     target_data, __ = next(target_iter)
+        # except Exception as err:
+        #     target_iter = iter(target_train_loader)
+        #     target_data, __ = next(target_iter)
+        
         source_data, source_label = next(source1_iter)[:2]
         target_data = next(target_iter)[0]
 
@@ -182,10 +187,20 @@ def train(model, source1_iter, source2_iter, target_iter, target_test_loader):
         
 
         
-
+#         source_data = source_data.to(device)
+#         source_label = source_label.to(device)
+#         target_data = target_data.to(device)
+        
         optimizer.zero_grad()
 
-
+#         print(type(source_data))
+#         print(source_data.shape)
+        
+#         print(type(target_data))
+#         print(target_data.shape)
+        
+#         print(type(source_label))
+#         print(source_label.shape)
         cls_loss, mmd_loss, l1_loss = model(source_data, target_data, source_label, mark=1)
         gamma = 2 / (1 + math.exp(-10 * (i) / (iteration) )) - 1
         loss = cls_loss + gamma * (mmd_loss + l1_loss)
@@ -196,6 +211,16 @@ def train(model, source1_iter, source2_iter, target_iter, target_test_loader):
             print('Train source1 iter: {} [({:.0f}%)]\tLoss: {:.6f}\tsoft_Loss: {:.6f}\tmmd_Loss: {:.6f}\tl1_Loss: {:.6f}'.format(
                 i, 100. * i / iteration, loss.item(), cls_loss.item(), mmd_loss.item(), l1_loss.item()))
 
+        # try:
+        #     source_data, source_label = next(source2_iter)
+        # except Exception as err:
+        #     source2_iter = iter(source2_loader)
+        #     source_data, source_label = next(source2_iter)
+        # try:
+        #     target_data, __ = next(target_iter)
+        # except Exception as err:
+        #     target_iter = iter(target_train_loader)
+        #     target_data, __ = next(target_iter)
 
 
         source_data, source_label = next(source2_iter)[:2]
